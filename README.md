@@ -46,25 +46,68 @@ Official implementation for ***PartUV: Part-Based UV Unwrapping of 3D Meshes***.
 - [ ] Blender plugin for PartUV
 
 
-# 🛠️ Installation
+# PartUV - Build Instructions
 
-## PartUV (for UV Unwrapping)
+A high-performance UV unwrapping library with CUDA acceleration.
 
-```bash
-# 1) Create and activate environment
-conda create -y --name partuv python=3.11
-conda activate partuv
+> **⚠️ Windows User Notice:** This project was originally designed for Linux. Building on Windows requires specific Visual Studio versions and dependency handling. Please follow the **Windows Build Guide** below exactly to avoid compiler crashes and missing library errors.
 
-# 2) Install PyTorch 2.7.1 (CUDA 12.8 wheels) and torch-scatter
-# It should work with other PyTorch/CUDA versions, but those are not tested.
-# conda install nvidia/label/cuda-12.8.1::cuda-toolkit
-pip install torch==2.7.1 --index-url https://download.pytorch.org/whl/cu128
-pip install torch-scatter -f https://data.pyg.org/whl/torch-2.7.1+cu128.html
+## Table of Contents
+- [Prerequisites](#prerequisites)
+- [Windows Build Guide (Crucial)](#windows-build-guide)
+  - [1. Visual Studio Version Match](#1-visual-studio-version-match)
+  - [2. Environment Setup](#2-environment-setup)
+  - [3. Dependency Management](#3-dependency-management)
+  - [4. Code Adjustments](#4-code-adjustments)
+  - [5. Build Command](#5-build-command)
+- [Linux Build Guide](#linux-build-guide)
+- [Troubleshooting](#troubleshooting)
 
-# 3) Install project requirements
-pip install -r requirements.txt
-pip install partuv
-```
+---
+
+## Prerequisites
+
+*   **OS:** Windows 10/11 or Linux (Ubuntu 20.04+).
+*   **CUDA Toolkit:** Version 12.1 or 12.4 recommended.
+*   **Python:** 3.10 or 3.11 (via Conda).
+*   **Git:** Required for fetching submodules.
+
+---
+
+## Windows Build Guide
+
+Building on Windows requires a precise combination of **Visual Studio Build Tools** and **Conda**.
+
+### 1. Visual Studio Version Match
+**CRITICAL:** The latest Visual Studio 2022 (v17.10+ / Compiler 19.4x) creates headers that are **incompatible** with CUDA 12.4's frontend (`cudafe++`), causing `ACCESS_VIOLATION` crashes.
+
+You **must** install the older 14.38 toolset:
+1.  Open **Visual Studio Installer**.
+2.  Click **Modify** on your VS 2022 installation.
+3.  Go to **Individual Components**.
+4.  Search for `14.38`.
+5.  Check **"MSVC v143 - VS 2022 C++ x64/x86 build tools (v14.38-17.8)"**.
+6.  Install it.
+
+### 2. Environment Setup
+You must use the **x64 Native Tools Command Prompt** and switch it to the older toolset.
+
+1.  Open **"x64 Native Tools Command Prompt for VS 2022"** as Administrator.
+2.  Run the following command to activate the 14.38 compiler:
+    ```cmd
+    "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64 -vcvars_ver=14.38
+    ```
+    *(Note: Adjust path if using Community/Enterprise edition instead of BuildTools).*
+3.  Verify by typing `cl`. The output must start with **Version 19.38...**.
+
+### 3. Dependency Management
+The project uses external libraries that are not included in the standard zip download.
+
+**Step A: Clone Correctly**
+Do not download the Zip file from GitHub.
+```cmd
+git clone --recursive https://github.com/EricWang12/PartUV.git
+cd PartUV
 
 Download the PartField checkpoint from [PartField](https://github.com/nv-tlabs/PartField):
 
