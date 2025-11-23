@@ -45,69 +45,178 @@ Official implementation for ***PartUV: Part-Based UV Unwrapping of 3D Meshes***.
 - [ ] Multi-atlas packing with uvpackmaster
 - [ ] Blender plugin for PartUV
 
+# PartUV - Windows Build Instructions
 
-# PartUV - Build Instructions
+**PartUV** is a high-performance UV unwrapping library with CUDA acceleration.
 
-A high-performance UV unwrapping library with CUDA acceleration.
+> ⚠️ **CRITICAL WINDOWS NOTICE**
+> This project was originally designed for Linux. Building on Windows requires specific **Visual Studio Toolset versions**, **Conda dependencies**, and **minor code modifications**.
+>
+> Please follow this guide **exactly** to avoid the common `cudafe++` crashes and missing library errors.
 
-> **⚠️ Windows User Notice:** This project was originally designed for Linux. Building on Windows requires specific Visual Studio versions and dependency handling. Please follow the **Windows Build Guide** below exactly to avoid compiler crashes and missing library errors.
+---
 
 ## Table of Contents
-- [Prerequisites](#prerequisites)
-- [Windows Build Guide (Crucial)](#windows-build-guide)
-  - [1. Visual Studio Version Match](#1-visual-studio-version-match)
-  - [2. Environment Setup](#2-environment-setup)
-  - [3. Dependency Management](#3-dependency-management)
-  - [4. Code Adjustments](#4-code-adjustments)
-  - [5. Build Command](#5-build-command)
-- [Linux Build Guide](#linux-build-guide)
-- [Troubleshooting](#troubleshooting)
+1. [Prerequisites](#1-prerequisites)
+2. [Visual Studio Setup (Crucial)](#2-visual-studio-setup-crucial)
+3. [Environment & Dependencies](#3-environment--dependencies)
+4. [Fixing Source Code](#4-fixing-source-code)
+5. [Modifying CMakeLists.txt](#5-modifying-cmakeliststxt)
+6. [Building & Installing](#6-building--installing)
+7. [Troubleshooting](#troubleshooting)
 
 ---
 
-## Prerequisites
+## 1. Prerequisites
 
-*   **OS:** Windows 10/11 or Linux (Ubuntu 20.04+).
-*   **CUDA Toolkit:** Version 12.1 or 12.4 recommended.
-*   **Python:** 3.10 or 3.11 (via Conda).
-*   **Git:** Required for fetching submodules.
+Ensure you have the following installed:
+*   **Git for Windows**
+*   **Miniconda or Anaconda** (Python 3.11 recommended)
+*   **CUDA Toolkit 12.4** (or 12.1)
+*   **Visual Studio 2022 Build Tools** (Desktop C++ Workload)
 
 ---
 
-## Windows Build Guide
+## 2. Visual Studio Setup (Crucial)
 
-Building on Windows requires a precise combination of **Visual Studio Build Tools** and **Conda**.
+**The Issue:** The latest Visual Studio 2022 compiler (v19.4x / Toolset 14.4x) creates C++ headers that are currently **incompatible** with CUDA 12.4, causing `nvcc` / `cudafe++` to crash with `ACCESS_VIOLATION`.
 
-### 1. Visual Studio Version Match
-**CRITICAL:** The latest Visual Studio 2022 (v17.10+ / Compiler 19.4x) creates headers that are **incompatible** with CUDA 12.4's frontend (`cudafe++`), causing `ACCESS_VIOLATION` crashes.
+**The Fix:** You **must** install and use the older **v14.38** toolset.
 
-You **must** install the older 14.38 toolset:
 1.  Open **Visual Studio Installer**.
-2.  Click **Modify** on your VS 2022 installation.
-3.  Go to **Individual Components**.
-4.  Search for `14.38`.
-5.  Check **"MSVC v143 - VS 2022 C++ x64/x86 build tools (v14.38-17.8)"**.
-6.  Install it.
+2.  Click **Modify** next to your VS 2022 installation.
+3.  Go to the **Individual Components** tab.
+4.  Search for: `14.38`
+5.  Check the box: **"MSVC v143 - VS 2022 C++ x64/x86 build tools (v14.38-17.8)"**.
+6.  Click **Modify** to install it.
 
-### 2. Environment Setup
-You must use the **x64 Native Tools Command Prompt** and switch it to the older toolset.
+---
 
-1.  Open **"x64 Native Tools Command Prompt for VS 2022"** as Administrator.
-2.  Run the following command to activate the 14.38 compiler:
-    ```cmd
-    "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64 -vcvars_ver=14.38
-    ```
-    *(Note: Adjust path if using Community/Enterprise edition instead of BuildTools).*
-3.  Verify by typing `cl`. The output must start with **Version 19.38...**.
+## 3. Environment & Dependencies
 
-### 3. Dependency Management
-The project uses external libraries that are not included in the standard zip download.
+We will use Conda to handle the difficult C++ libraries (CGAL, TBB) to avoid compiling them manually.
 
-**Step A: Clone Correctly**
-Do not download the Zip file from GitHub.
+### A. Create Environment
+Open your terminal and run:
 ```cmd
-git clone --recursive https://github.com/EricWang12/PartUV.git
-cd PartUV
+conda create -n partuv python=3.11
+conda activate partuv
+```
+
+### B. Install Binary Dependencies
+Install the build tools and libraries. **Note:** `tbb-devel` is required for the headers.
+```cmd
+conda install -c conda-forge cgal tbb tbb-devel pybind11 ninja cmake
+pip install scikit-build-core
+```
+
+### C. Download Source & External Libraries
+The project uses "Git Submodules" for dependencies like Eigen and LibIGL. If you downloaded a ZIP from GitHub, these folders are empty. We must fill them manually.
+
+Run these commands in your project root:
+```cmd
+cd extern
+
+# Clean potentially broken folders
+rmdir /s /q eigen-3.4.0 libigl json stb OpenABF
+
+# Download dependencies manually to ensure they exist
+git clone --depth 1 --branch 3.4.0 https://gitlab.com/libeigen/eigen.git eigen-3.4.0
+git clone --depth 1 https://github.com/libigl/libigl.git libigl
+git clone --depth 1 https://github.com/nlohmann/json.git json
+git clone --depth 1 https://github.com/nothings/stb.git stb
+git clone --depth 1 https://github.com/EricWang12/OpenABF.git OpenABF
+
+cd ..
+```
+
+---
+
+## 4. Fixing Source Code
+
+The original code uses Linux-specific logic that Visual Studio does not accept. You must edit **one file**.
+
+**File:** `src/UnwrapMerge.cpp`  
+**Line:** ~849 (Search for `#pragma omp parallel for`)
+
+**Change this:**
+```cpp
+for (std::size_t k = 0; k < mergePairs.size(); ++k)
+```
+**To this:**
+```cpp
+// Cast size to int because MSVC OpenMP does not support unsigned variables
+for (int k = 0; k < static_cast<int>(mergePairs.size()); ++k)
+```
+
+---
+
+## 5. Modifying CMakeLists.txt
+
+To fix the `error C2065: 'not': undeclared identifier` and missing math constants, replace the MSVC section in `CMakeLists.txt` with this block:
+
+```cmake
+if(MSVC)
+    # Windows / Visual Studio Flags
+    # /permissive- fixes 'not', 'and', 'or' keywords
+    # /Zc:__cplusplus forces correct C++ version reporting
+    add_compile_options(/O2 /fp:fast /permissive- /Zc:__cplusplus)
+    
+    # Fix compatibility definitions
+    add_compile_definitions(
+        _USE_MATH_DEFINES 
+        NOMINMAX 
+        M_PI=3.14159265358979323846
+        _HAS_STD_BYTE=0        # Fixes ambiguous symbol 'byte' error
+        and=&&                 # Manually define linux keywords if permissive- fails
+        or=||
+        not=!
+    )
+
+    # Suppress common NVCC warnings on Windows
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler \"/wd4819\"") 
+else()
+```
+
+---
+
+## 6. Building & Installing
+
+Perform the final build using the **x64 Native Tools Command Prompt for VS 2022** (Run as Administrator).
+
+### Step 1: Activate the Compatible Toolset (v14.38)
+Run this command to force the terminal to use the older compiler version we installed earlier.
+```cmd
+"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64 -vcvars_ver=14.38
+```
+*Check:* Run `cl`. Output must start with **Version 19.38...**.
+
+### Step 2: Clean Previous Attempts
+```cmd
+rmdir /s /q build
+rmdir /s /q _skbuild
+rmdir /s /q partuv.egg-info
+```
+
+### Step 3: Install
+Run this exact command. It disables the internal profiler (which causes issues on Windows) and points CMake to your Conda libraries.
+
+```cmd
+pip install . -v --no-build-isolation --config-settings="cmake.args=-GNinja;-DCMAKE_PREFIX_PATH='%CONDA_PREFIX%\Library';-DTBB_DIR='%CONDA_PREFIX%\Library\lib\cmake\TBB';-DENABLE_PROFILING=OFF"
+```
+
+---
+
+## Troubleshooting
+
+| Error | Cause | Solution |
+| :--- | :--- | :--- |
+| **`fatal error C1083: Cannot open include file: 'Eigen/Core'`** | `extern` folders are empty. | Run the manual `git clone` commands in Section 3C. |
+| **`nvcc error : 'cudafe++' died with status 0xC0000005`** | Using VS Toolset v14.4x (too new). | Downgrade terminal to v14.38 using the `vcvarsall.bat` command in Section 6. |
+| **`CMake Error: Required library TBB not found`** | Missing development headers. | Run `conda install -c conda-forge tbb-devel`. |
+| **`error C2065: 'not': undeclared identifier`** | MSVC doesn't support ISO keywords by default. | Apply the `CMakeLists.txt` patch in Section 5. |
+| **`error C3016: index variable in OpenMP ... signed integral type`** | Code uses `size_t` in parallel loops. | Apply the source code fix in Section 4. |
+| **`EasyProfiler ... libeasy_profiler.so not found`** | Linux binaries included in repo. | Use `-DENABLE_PROFILING=OFF` in the install command. |
 
 Download the PartField checkpoint from [PartField](https://github.com/nv-tlabs/PartField):
 
