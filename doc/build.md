@@ -70,7 +70,7 @@ Download and install [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
 
 ```bash
 # Clone with submodules
-git clone --recurse-submodules https://github.com/yourusername/partuv.git
+git clone --recurse-submodules https://github.com/Aero-Ex/PartUV-Win.git
 cd partuv
 
 # Or if already cloned, update submodules
