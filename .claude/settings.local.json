@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(powershell -Command \"echo $env:CONDA_PREFIX\")",
+      "Bash(dir /s /b *.log)",
+      "Bash(findstr:*)",
+      "Bash(powershell:*)",
+      "Bash(cmake:*)",
+      "Bash(ninja:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
